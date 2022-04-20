@@ -1,0 +1,139 @@
+---
+title: "Interview Assignment - Bots Detection"
+author: "Peter Mburu Kimani"
+date: "20/04/2022"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '6'
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 6
+    number_sections: yes
+    theme: lumen
+---
+
+## Introduction
+This workbook discusses some of the properties to detect bot and a method/tool for detecting a bot.
+
+loading necessary packages
+```{r}
+#creating a vector of the packages that are required
+packages<-c("rtweet","devtools","dplyr")
+
+#creating a function that checks if the packages are available in the library, if not they are loaded from CRAN
+package.load.install <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
+
+## install {remotes} if not already
+if (!"remotes" %in% installed.packages()) {
+  install.packages("remotes")
+}
+
+## install from github21
+remotes::install_github("mkearney/tweetbotornot2")
+```
+```{r}
+library(tweetbotornot2)
+```
+
+###importing scrapped data
+```{r}
+scrapped.tweets<-read.csv("C:\\Users\\kiman\\Documents\\Pitz\\Persoonal Items\\Updated Applications\\Code For Africa\\CFA Interview\\scrapped_data.csv")
+#changing the character date type to POSIXct type
+scrapped.tweets$created_at<-as.POSIXct(scrapped.tweets$created_at)
+```
+
+## 4.	Using the data from the hashtag collected, identify one account that you suspect might be automated and flag some of the bot-like traits you identified. Which tool did you use for this?
+### Tools used 
+I used R and R package tweetbotornot2 that uses XGBoost to determine if a twitter account is a bot or not by looking at some features about the account. 
+
+### using R to find a bot
+We need twitter historical activity of the accoutns in the scrapped datasets 
+
+```{r}
+#getting screen names(users in the data )
+screen_name<-scrapped.tweets$screen_name
+```
+
+
+Using the screen name to scrap historical data (7 days historical activity) from twitter of the screen names in the scrapped.tweets dataset (The API only allow scrapping of data of the recent 7 days)
+
+#creating twitter token 
+```{r}
+key<-"crUhHKQHyP6zjGz6aS5RCAe0U"  #API KEY 
+api.secret<-"DFP5kVTtoMEKKWlJB8RrgVvuoxx7lv8UYo0pmXn8VWUlkTy1X2" #API KEYSECRET
+access.token<-"2387182982-002DRJGIGduTsQjlVLqXxWhHl6bE3LckJmX53Dk" #ACCESS TOKEN
+token.secret<-"NEUH5HRHGvbm81zjNuA06IvjrbTn3AXGmc9HLNpDPiUXo" #TOKEN SECRET
+```
+
+```{r}
+
+## Create Twitter token
+token <- create_token(
+  app = "CFA_Peter",
+  consumer_key = key,
+  consumer_secret = api.secret,
+  access_token =access.token,
+  access_secret = token.secret)
+```
+
+Using the screen name to scrap historical data (7 days historical activity) from twitter of the screen names in the scrapped.tweets dataset (The API only allow scrapping of data of the recent 7 days)
+
+```{r}
+mydata<- get_timelines(screen_name, n = 200, check = FALSE)
+```
+
+
+Using Machine learning method (XGboost) that looks into the activity, name, followers to check if the accounts are bots. The model returns a probability score with an explanation why the account might be a bot. 
+
+
+```{r}
+reasons<-explain_bot(mydata)[
+  order(-prob_bot, 
+  -abs(value)), ][
+    feature %in% feature[1:5],
+    .SD, on = "feature" ][1:50, -1]
+reasons
+```
+The table above shows five features that were used to assess whether the account is bot and corresponding weight in dertermining if the account is a bot. 
+
+
+Arranging  the data based on the probability score of being a bot
+```{r}
+probability_of_bot<-predict_bot(mydata)
+probability_of_bot%>%arrange(-prob_bot)
+```
+from the data above, the account JFSebastian146 has a 99.86% chance of being a bot. 
+Extracting the reasons why JFSebastian146 might a bought from the model. The other accounts have a less than 10% chance of being a bot and are ommitted.  
+```{r}
+reasons[reasons$screen_name=="JFSebastian146",c(1,4,5)]
+```
+The reason(features) looked into as to why JFSebastian146 might be a bot are (features with the lowest value) 
+1. shortest(nth) time between retweets
+2. shortest (nth)
+3. Tweet display width variation
+4. Tweet source unknown 
+
+A manual check into this account on twitter found that the user has had over 1 million tweets. 
+
+## 3.	What are some of the characteristics you would consider when identifying fake or suspicious accounts on Twitter?
+
+There are several characteristics that can be used to identify a bot. Some of these characteristics are 
+
+1.	**Time-based correlation**:-Most bot accounts usually tweet or retweet in a short time. Also, a lot of tweets without engagement or a high number of engagements with similar likes and retweets might indicate the account is a bot. 
+2.	**Automation**: Tweets or Quotes appear to be short automated replies. This indicates that the account might be a bot. 
+3.	**Amplification**: An account with very few followers might have a post with many likes and retweets. This occurs when a group of bots is used to amplify specific content that they like and retweet from each other. 
+4.	**Account Activity**: - When a bot follows many accounts and it does not have any followers, retweets content from these many accounts it follows at a higher rate, this might be an indication the account is a bot. 
+5.	**Common Content/Commercial Content**:- Tweets from a different account that has common content with retweets especially content advertising a certain product/service indicates this account is a bot. 
+6.	**User handle, no profile, or stolen photos**: - some bots have a unique combination of characters with numbers as user handle, with no profiles or even stollen profiles. A combination of these characteristics indicates the account might be a bot. 
+

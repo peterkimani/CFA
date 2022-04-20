@@ -1,0 +1,95 @@
+---
+title: "Interview Assignment - Data Collection"
+author: "Peter Mburu Kimani"
+date: "20/04/2022"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '6'
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 6
+    number_sections: yes
+    theme: lumen
+---
+## Introduction 
+This R workbook shows how to retrieve Twitter's Data using Twitter's API Elevated Access. 
+
+
+## Loading Necessary Packages
+
+```{r}
+#creating a vector of the packages that are required
+packages<-c("rtweet","tidyverse","httr")
+
+#creating a function that checks if the packages are available in the library, if not they are loaded from CRAN
+package.load.install <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
+```
+
+
+## Connecting to Twitter's API
+After getting Twitter's developer access, the following API keys are used to download the data 
+```{r}
+key<-"crUhHKQHyP6zjGz6aS5RCAe0U"  #API KEY 
+api.secret<-"DFP5kVTtoMEKKWlJB8RrgVvuoxx7lv8UYo0pmXn8VWUlkTy1X2" #API KEYSECRET
+access.token<-"2387182982-002DRJGIGduTsQjlVLqXxWhHl6bE3LckJmX53Dk" #ACCESS TOKEN
+token.secret<-"NEUH5HRHGvbm81zjNuA06IvjrbTn3AXGmc9HLNpDPiUXo" #TOKEN SECRET
+```
+
+#creating twitter token 
+```{r}
+## Create Twitter token
+token <- create_token(
+  app = "CFA_Peter",
+  consumer_key = key,
+  consumer_secret = api.secret,
+  access_token =access.token,
+  access_secret = token.secret)
+```
+
+
+##Scrapping Twitter 
+Scrapping twitter data
+```{r}
+## search for 18000 tweets using the rstats hashtag
+tweet.scrap<- search_tweets(
+  "#RacistEU", include_rts = TRUE,retryonratelimit = TRUE,
+  type="mixed"
+)
+
+
+```
+
+### Exploring the scrapped data 
+Checking how many tweets were downloaded
+
+```{r}
+dim(tweet.scrap)
+```
+26 tweets were downloanded. 
+
+Checking the period range of the downloaded tweet 
+```{r}
+range(tweet.scrap$created_at)
+```
+Twitters API Elevated Access, does not give access to tweets that are more than seven days old. Twitter has more restriction to archived tweets (tweets more than 7 days old as the access is given only to Academic Research Track). To overcome this challenge, the tweets for the period 26 February 2022 to 26th March 2022, were obtained from a third party app called Apify (using the free access option) https://console.apify.com/. 
+
+## Exporting scrapped data as CSV
+Exporting the scrapped data using API. 
+```{r}
+#write_as_csv(tweet.scrap,"scrapped_data.csv")
+```
+
+
+
+

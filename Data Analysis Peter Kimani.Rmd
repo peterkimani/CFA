@@ -1,0 +1,179 @@
+---
+title: "Interview Assignment - Data Analysis"
+author: "Peter Mburu Kimani"
+date: "20/04/2022"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '6'
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: yes
+    toc_depth: 6
+    number_sections: yes
+    theme: lumen
+---
+## Introduction
+This Rmarkdown shows how to analyze twitter data.
+
+Since data from Twitter's API does not include old tweets (only tweets for the last 7 days are shown), it was not possible to download tweets for the period (26th February to 26 March 2022), I had to work with the available data that I could scrap using the API, in order to demonstrate my skills. 
+
+### Importing the data and loading necessary packages 
+Downloading and loading necessary packages
+
+```{r}
+#creating a vector of the packages that are required
+packages<-c("rtweet","tidyverse","httr","knitr","stringr","tidytext","wordcloud","igraph","imager")
+
+#creating a function that checks if the packages are available in the library, if not they are loaded from CRAN
+package.load.install <- lapply(
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+      library(x, character.only = TRUE)
+    }
+  }
+)
+```
+
+Importing the scrapped data set into R. The code that was used to scrape the dataset has already been attached in the shared folder, and it is named "Twitter Task Retrieving Data Using API". 
+
+```{r}
+scrapped.tweets<-read.csv("C:\\Users\\kiman\\Documents\\Pitz\\Persoonal Items\\Updated Applications\\Code For Africa\\CFA Interview\\scrapped_data.csv")
+```
+
+Getting to know how the size (dimension) of the scrapped data
+```{r}
+dim(scrapped.tweets)
+```
+The imported dataset has 27 rows and 90 columns dimensions. 
+
+## a.	What is the total number of tweets using the hashtag?
+Since the criterion to scrap the data was the #RacistEU, the data obtained rowwise included the tweets that contain the hashtag
+```{r}
+dim(scrapped.tweets)[1]
+```
+There are 27 tweets that were scrapped that contain the hashtag #RacistEU (Due limitation in the API as explained, only tweets for the last 7 days were scrapped and analyzed)
+
+## b.	Develop a timeline of the tweets showing a line graph.  
+
+```{r}
+#changing the character date type to POSIXct type
+scrapped.tweets$created_at<-as.POSIXct(scrapped.tweets$created_at)
+
+#Using ts_plot function and ggplot to plot the timeline
+ts_plot(scrapped.tweets, "hours")+ 
+  labs(x = NULL, y = NULL,
+       title = "Frequency of tweets with a #RacistEU hashtag",
+       subtitle = paste0(format(min(scrapped.tweets$created_at), "%d %B %Y"), " to ", format(max(scrapped.tweets$created_at),"%d %B %Y")),
+       caption = "Data collected from Twitter's Evelated Access API") +
+  theme_minimal()
+
+ 
+```
+Around 14 April is when most tweets about the hashtag #RacistEU were tweeted. 
+
+
+## c.	Identify the account name and account handle of the author of the first tweet that used the hashtag.
+To Identify the account that used the hashtag for the first time, we will take the earliest tweet to posted using this hashtag from the dataset. 
+```{r}
+scrapped.tweets%>%slice(which.min(created_at))%>%select(created_at,screen_name,user_id)
+```
+Based on this scrapped data (for the last seven days), the account that tweeted first was on 4th April 2022, the screen name is Alimal1000. The account handle could not be obtained since it is not disclosed in the scrapped data. However, the userID can be reversed searched to get the account name. 
+
+## d.	Identify the Tweet and the account that received the highest engagement (Retweets + Quotes). Output the URLs of the tweet and the account.
+```{r}
+#finding if quotes and retweets in the data to be summed up to get the account with the highest engagement
+range(scrapped.tweets$quote_count)
+range(scrapped.tweets$retweet_count)
+
+```
+Ther are no quoted tweets in this dataset, the highest number of retweets that an account has are 2645. Hence, only retweets will be considered for  engagement.
+
+```{r}
+scrapped.tweets %>% 
+ mutate(rank = dense_rank(desc(retweet_count)))%>%
+  select(profile_url, screen_name, retweet_count,rank)%>%filter(rank==1)
+```
+Based on this data, Future_Hndrx and Msivuthu had the highest engagement with 2645 rewtweets and no quotes each. 
+
+## e.	Identify the top ten accounts with the highest number of original tweets (Tip: Original tweets do not include retweets or quoted tweets)
+```{r}
+scrapped.tweets %>% 
+  count(screen_name, sort = TRUE) %>%
+  mutate(screen_name = paste0("@", screen_name))%>%
+  mutate( dense_rank(desc(n)))
+```
+Because  of the limitations of API and the small dataset, accounts with the top tweets are shown above which when ranked from 1 to 10, because of shared ranking positions all the accounts are in top ten. 
+
+## f.	Identify the top ten accounts with the highest number of retweets.
+```{r}
+scrapped.tweets %>% 
+  arrange(desc(retweet_count)) %>%mutate(rank = dense_rank(desc(retweet_count)))%>%
+  select(created_at, screen_name, retweet_count,rank)%>%filter(rank %in% c(1:10))
+```
+
+The table above shows the top ten accounts in high number of retweets. 
+
+## g.	Develop a wordcloud of the tweets and identify the top 10 keywords used within the hashtag. What are the key themes and narratives you can derive from the word cloud?
+```{r}
+#Developing a word count vector 
+
+words <- scrapped.tweets %>%
+  mutate(text = str_remove_all(text, "&amp;|&lt;|&gt;"),
+         text = str_remove_all(text, "\\s?(f|ht)(tp)(s?)(://)([^\\.]*)[\\.|/](\\S*)"),
+         text = str_remove_all(text, "[^\x01-\x7F]")) %>% 
+  unnest_tokens(word, text, token = "tweets") %>%
+  filter(!word %in% stop_words$word,
+        !word %in% str_remove_all(stop_words$word, "'"),
+        str_detect(word, "[a-z]"),
+        !str_detect(word, "^#"),         
+        !str_detect(word, "@\\S+")) %>%
+  count(word, sort = TRUE)
+```
+Generating a Word Clound
+```{r}
+words %>% 
+  with(wordcloud(word, n, random.order = FALSE, max.words = 10, random.color = T),scale = c(4, 0.2))
+```
+Due to the small data size (only 26 tweet), the words in the word cloud have almost similar low frequency, which affects visualization of the words. 
+
+## h.	Which account posted this tweet? “Africans in Ukraine deserve better. Call out the EU Now! Retweet to mobilise #RacistEU”
+It was not possible to obtain this informaton since the tweets scrapped did not cover this period this tweet was written. 
+
+## i.	Using gephi, or any other social network visualisation tool, visualise the network and identify key accounts and clusters that spearheaded this hashtag;
+The following codes uses igraph package to prepare the twitter dataset for quick analysis in gephi. 
+
+Creating an interaction graph
+```{r}
+## Create graph
+filter(scrapped.tweets, retweet_count > 0) %>% 
+  select(screen_name, mentions_screen_name) %>%
+  unnest(mentions_screen_name) %>% 
+  filter(!is.na(mentions_screen_name)) %>% 
+  graph_from_data_frame() -> tweeter.graph
+```
+
+```{r}
+summary(tweeter.graph)
+```
+The interaction graph has 31 nodes and 23 edges. (The low number of nodes and edges is due to the small dataset that was scrapped using the API)
+
+Exporting a ready to read gephi file from R 
+```{r}
+write_graph(simplify(tweeter.graph),  "tweeter_graph.gml", format = "gml")
+```
+
+The tweeter_graph.gml file was imported into Gephi APP and Louvian Graph Cluster Algorithim method was used to cluster through Modular Degree. 
+
+The image below shows, the social path analysis obtained from Gephi. 
+
+![Twitter Path Analysis ](\Users\\kiman\\Documents\\Pitz\\Persoonal Items\\Updated Applications\\Code For Africa\\CFA Interview\\Twitter Path Analysis.png)
+
+The graphs shows cluster in different color codes (there were 7 clusters identified) and users. 
+
+##j.	From your assessment, were there any accounts that worked in a coordinated way to push this hashtag?
+Yes, by the color codes of the clusters indicates some of the accounts that worked together. Also. using the nodes size modularity option in Gephi, I was able to set size of the nodes based on the moduler degree. This highlighted the following accounts as have been worked together EmadHajjaj,cesarmarinhorj, marynanogtieva and uncleobama and have a higher interaction. 
+
